@@ -1,0 +1,32 @@
+dataset:
+  id: clothing_dataset_small
+  version: v1
+
+  local_path: data/clothing-dataset-small
+
+  train_dir: train
+  validation_dir: validation
+  test_dir: test
+
+model:
+  version: model_v1
+  architecture: mobilenet_v3_large
+  image_size: 224
+  pretrained: true
+
+training:
+  epochs: 5
+  batch_size: 32
+  learning_rate: 0.001
+
+output:
+  model_path: ml/models/model_v1.pth
+  metadata_path: ml/models/model_v1_metadata.json
+
+aws:
+  s3_dataset_prefix: datasets/clothing_dataset_small/v1
+  s3_model_prefix: models
+
+metadata:
+  author: Laurenz Lattermann
+  project: refund-classification

@@ -1,5 +1,5 @@
 # Refund Classification MLOps
-
+Pythonversion:  3.11
 Architecture:
 
 FastAPI (App Runner)

@@ -8,3 +8,6 @@
 # pandas
 # sqlalchemy
 # psycopg2-binary
+kagglehub
+torch
+torchvision
