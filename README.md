@@ -1,25 +1,18 @@
-# Refund Classification MLOps
-Pythonversion:  3.11
-Architecture:
+Setup
+create venv with python 3.11
+pip install -r requiremnts.txt
 
-FastAPI (App Runner)
-S3
-RDS PostgreSQL
-EventBridge
-ECS Fargate
-CloudWatch
 
-Workflow:
+install terraform
+install awscli
+create aws admin user (or least priveldge with necessary rights would be: ...)
+configure aws cli (username password etc)
 
-Upload Image
--> S3
 
-Nightly Prediction
--> EventBridge
--> ECS Fargate
--> RDS
+env only stores appconfig awssecret path and aws region
+all other env vars are stored as secrets
 
-Monthly Retraining
--> EventBridge
--> ECS Fargate
--> S3 Model Registry
+cd terraform 
+terraform init
+terraform plan
+terrafrom apply

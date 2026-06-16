@@ -1,13 +1,6 @@
-# Python dependencies.
-#
-# Example:
-# fastapi
-# uvicorn
-# boto3
-# torch
-# pandas
-# sqlalchemy
-# psycopg2-binary
 kagglehub
 torch
 torchvision
+psycopg
+dotenv
+boto3

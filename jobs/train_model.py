@@ -1,12 +1,12 @@
 import logging
 from copy import deepcopy
-from pathlib import Path
-from time import perf_counter
-import yaml
 import os
 from pathlib import Path
+from time import perf_counter
 
+import boto3
 import torch
+import yaml
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -14,16 +14,32 @@ from torchvision import datasets, transforms
 from app.logging_config import setup_logger
 from ml.metadata import build_training_metadata, save_metadata_json
 from ml.model import create_model, save_model
+from storage.aws_secrets import get_secret
 
 
 setup_logger(__name__)
 logger = logging.getLogger(__name__)
 
 
-CONFIG_PATH = Path(os.getenv("TRAIN_CONFIG_PATH"))
+def load_app_config() -> dict:
+    return get_secret(
+        secret_name=os.environ["APP_CONFIG_SECRET_NAME"],
+        region=os.environ["AWS_REGION"],
+    )
 
-with CONFIG_PATH.open("r", encoding="utf-8") as file:
-    config = yaml.safe_load(file)
+
+def load_training_config(app_config: dict) -> dict:
+    client = boto3.client("s3", region_name=app_config["aws_region"])
+    response = client.get_object(
+        Bucket=app_config["s3_bucket"],
+        Key=app_config["train_config_s3_key"],
+    )
+
+    return yaml.safe_load(response["Body"].read().decode("utf-8"))
+
+
+app_config = load_app_config()
+config = load_training_config(app_config)
 
 DATASET_ID = config["dataset"]["id"]
 DATASET_VERSION = config["dataset"]["version"]

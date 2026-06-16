@@ -1,0 +1,5 @@
+- push dataset to s3
+- connect train.py to rds and s3
+- build dockerimage.train
+- test training process
+- think about a central controller for training. Maybe a simple api trigger with (dataset-path, model-architecture, training-params) is enough

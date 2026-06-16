@@ -1,0 +1,16 @@
+{
+    "model_version": "model_v1",
+    "architecture": "mobilenet_v3_large",
+    "training_timestamp": "2026-06-16T17:44:32.134116+00:00",
+    "dataset_id": "clothing_dataset_small",
+    "dataset_version": "v1",
+    "train_loss": 0.10690697509077533,
+    "validation_accuracy": 0.8592375366568915,
+    "test_accuracy": 0.8763440860215054,
+    "epochs": 5,
+    "batch_size": 32,
+    "learning_rate": 0.001,
+    "image_size": 224,
+    "training_duration_seconds": 4122.304095667001,
+    "git_commit_hash": "7a0f45a8a6c45a2feb5942978594ae5fde78849c"
+}
