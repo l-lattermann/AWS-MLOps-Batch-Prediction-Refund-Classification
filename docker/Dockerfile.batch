@@ -1,0 +1,4 @@
+# Docker image for nightly batch prediction.
+#
+# Used by:
+# ECS Fargate batch task

@@ -1,0 +1,4 @@
+# Docker image for training job.
+#
+# Used by:
+# ECS Fargate training task

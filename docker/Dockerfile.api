@@ -1,0 +1,4 @@
+# Docker image for FastAPI service.
+#
+# Used by:
+# AWS App Runner
