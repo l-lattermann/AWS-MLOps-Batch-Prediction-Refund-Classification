@@ -19,6 +19,25 @@ locals {
     Environment = var.environment
     ManagedBy   = "terraform"
   }
+
+  app_environment = {
+    AWS_REGION           = var.aws_region
+    S3_BUCKET            = aws_s3_bucket.refund_bucket.bucket
+    CLOUDWATCH_LOG_GROUP = aws_cloudwatch_log_group.ecs_logs.name
+
+    POSTGRES_SECRET_ARN = aws_db_instance.postgres.master_user_secret[0].secret_arn
+    POSTGRES_HOST       = aws_db_instance.postgres.address
+    POSTGRES_PORT       = tostring(aws_db_instance.postgres.port)
+    POSTGRES_DB_NAME    = var.db_name
+
+    TRAIN_CONFIG_S3_KEY            = var.train_config_s3_key
+    BATCH_PREDICTION_CONFIG_S3_KEY = var.batch_prediction_config_s3_key
+    DATASETS_PREFIX                = "datasets/"
+    MODELS_PREFIX                  = "models/"
+    METADATA_PREFIX                = "metadata/"
+    CONFIGS_PREFIX                 = "configs/"
+    INCOMING_IMAGES_PREFIX         = "incoming-images/"
+  }
 }
 
 resource "aws_resourcegroups_group" "refund_group" {
@@ -27,12 +46,10 @@ resource "aws_resourcegroups_group" "refund_group" {
   resource_query {
     query = jsonencode({
       ResourceTypeFilters = ["AWS::AllSupported"]
-      TagFilters = [
-        {
-          Key    = "Project"
-          Values = [var.project_name]
-        }
-      ]
+      TagFilters = [{
+        Key    = "Project"
+        Values = [var.project_name]
+      }]
     })
   }
 }
@@ -51,35 +68,45 @@ resource "aws_s3_bucket_versioning" "refund_bucket" {
 }
 
 resource "aws_db_instance" "postgres" {
-  identifier             = "${var.project_name}-db"
-  engine                 = "postgres"
-  engine_version         = "16"
-  instance_class         = "db.t4g.micro"
-  allocated_storage      = 20
-  db_name                = var.db_name
-  username               = var.db_username
-  password               = var.db_password
-  publicly_accessible    = true
-  skip_final_snapshot    = true
+  identifier                  = "${var.project_name}-db"
+  engine                      = "postgres"
+  engine_version              = "16"
+  instance_class              = "db.t4g.micro"
+  allocated_storage           = 20
+  db_name                     = var.db_name
+  username                    = var.db_username
+  manage_master_user_password = true
+  publicly_accessible         = true
+  vpc_security_group_ids      = [aws_security_group.rds.id]
+  skip_final_snapshot         = true
 
   tags = local.common_tags
 }
 
-resource "aws_secretsmanager_secret" "postgres" {
-  name = "${var.project_name}/${var.environment}/postgres"
+resource "aws_default_vpc" "default" {
   tags = local.common_tags
 }
 
-resource "aws_secretsmanager_secret_version" "postgres" {
-  secret_id = aws_secretsmanager_secret.postgres.id
+resource "aws_security_group" "rds" {
+  name        = "${var.project_name}-rds-sg"
+  description = "Allow PostgreSQL access"
+  vpc_id      = aws_default_vpc.default.id
 
-  secret_string = jsonencode({
-    host     = aws_db_instance.postgres.address
-    port     = aws_db_instance.postgres.port
-    database = var.db_name
-    username = var.db_username
-    password = var.db_password
-  })
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = local.common_tags
 }
 
 resource "aws_ecr_repository" "refund_repo" {
@@ -108,29 +135,4 @@ resource "aws_cloudwatch_event_rule" "monthly_training" {
   name                = "${var.project_name}-monthly-training"
   schedule_expression = "cron(0 2 1 * ? *)"
   tags                = local.common_tags
-}
-
-resource "aws_secretsmanager_secret" "app_config" {
-  name = "${var.project_name}/${var.environment}/app-config"
-  tags = local.common_tags
-}
-
-resource "aws_secretsmanager_secret_version" "app_config" {
-  secret_id = aws_secretsmanager_secret.app_config.id
-
-  secret_string = jsonencode({
-    aws_region                     = var.aws_region
-    s3_bucket                      = aws_s3_bucket.refund_bucket.bucket
-    cloudwatch_log_group           = aws_cloudwatch_log_group.ecs_logs.name
-    ecr_repository_url             = aws_ecr_repository.refund_repo.repository_url
-    postgres_secret_name           = aws_secretsmanager_secret.postgres.name
-    train_config_s3_key            = var.train_config_s3_key
-    batch_prediction_config_s3_key = var.batch_prediction_config_s3_key
-
-    datasets_prefix        = "datasets/"
-    models_prefix          = "models/"
-    metadata_prefix        = "metadata/"
-    configs_prefix         = "configs/"
-    incoming_images_prefix = "incoming-images/"
-  })
 }

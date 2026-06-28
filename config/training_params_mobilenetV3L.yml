@@ -26,7 +26,3 @@ output:
 aws:
   s3_dataset_prefix: datasets/clothing_dataset_small/v1
   s3_model_prefix: models
-
-metadata:
-  author: Laurenz Lattermann
-  project: refund-classification

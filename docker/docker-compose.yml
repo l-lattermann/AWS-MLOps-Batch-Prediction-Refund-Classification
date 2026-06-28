@@ -1,0 +1,33 @@
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    env_file:
+      - ../.env
+    volumes:
+      - ..:/app
+      - ~/.aws:/root/.aws:ro
+    command: python -m app.main
+
+  train:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.train
+    env_file:
+      - ../.env
+    volumes:
+      - ..:/app
+      - ~/.aws:/root/.aws:ro
+    command: python -m ml.train_model
+
+  batch:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.batch
+    env_file:
+      - ../.env
+    volumes:
+      - ..:/app
+      - ~/.aws:/root/.aws:ro
+    command: python -m ml.batch_predict

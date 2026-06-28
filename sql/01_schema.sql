@@ -1,5 +1,5 @@
 CREATE TYPE image_status AS ENUM (
-    'UPLOADED',
+    'PENDING',
     'PROCESSING',
     'PREDICTED',
     'FAILED'
@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS models (
     architecture TEXT NOT NULL,
     dataset_id TEXT NOT NULL,
     dataset_version TEXT NOT NULL,
-    s3_model_path TEXT NOT NULL,
+    s3_model_path TEXT NOT NULL UNIQUE,
     s3_metadata_path TEXT,
     active BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -74,9 +74,9 @@ CREATE TABLE IF NOT EXISTS training_runs (
 
 CREATE TABLE IF NOT EXISTS images (
     image_id TEXT PRIMARY KEY,
-    s3_key TEXT NOT NULL,
+    s3_key TEXT NOT NULL UNIQUE,
     filename TEXT NOT NULL,
-    status image_status NOT NULL DEFAULT 'UPLOADED',
+    status image_status NOT NULL DEFAULT 'PENDING',
     uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

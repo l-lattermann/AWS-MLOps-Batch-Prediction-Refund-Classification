@@ -6,3 +6,5 @@ data/*/*
 terraform/.terraform/
 *.tfstate
 *.tfstate.*
+**/infrastructure.json
+**/*.pem
