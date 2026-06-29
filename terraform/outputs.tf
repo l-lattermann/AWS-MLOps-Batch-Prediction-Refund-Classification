@@ -25,3 +25,30 @@ output "postgres_secret_arn" {
 output "app_environment" {
   value = local.app_environment
 }
+
+output "train_task_definition" {
+  value = aws_ecs_task_definition.train.arn
+}
+
+output "batch_task_definition" {
+  value = aws_ecs_task_definition.batch.arn
+}
+
+output "ecs_task_security_group_id" {
+  value = aws_security_group.ecs_tasks.id
+}
+
+output "default_subnet_ids" {
+  value = data.aws_subnets.default.ids
+}
+output "api_task_definition" {
+  value = aws_ecs_task_definition.api.arn
+}
+
+output "api_service_name" {
+  value = aws_ecs_service.api.name
+}
+
+output "api_url" {
+  value = "http://${aws_lb.api.dns_name}"
+}

@@ -15,6 +15,6 @@ fi
 cd "$ROOT_DIR/terraform"
 
 terraform init
-terraform apply
+terraform apply -auto-approve || true
 
 terraform output -json > "$ROOT_DIR/$INFRASTRUCTURE_OUTPUT_PATH"

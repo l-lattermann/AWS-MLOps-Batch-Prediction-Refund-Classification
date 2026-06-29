@@ -8,3 +8,6 @@ terraform/.terraform/
 *.tfstate.*
 **/infrastructure.json
 **/*.pem
+**/*.venv/
+**/*venv/
+**/*.vscode/

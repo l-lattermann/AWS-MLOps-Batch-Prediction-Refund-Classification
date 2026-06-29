@@ -11,6 +11,11 @@ CREATE TYPE run_status AS ENUM (
     'FAILED'
 );
 
+CREATE TYPE config_type AS ENUM (
+    'TRAIN',
+    'PREDICTION'
+);
+
 CREATE TABLE IF NOT EXISTS datasets (
     dataset_id TEXT NOT NULL,
     dataset_version TEXT NOT NULL,
@@ -120,6 +125,16 @@ CREATE TABLE IF NOT EXISTS predictions (
     FOREIGN KEY (model_version)
         REFERENCES models(model_version)
 );
+
+CREATE TABLE IF NOT EXISTS configs (
+    config_id TEXT PRIMARY KEY,
+    config_type config_type NOT NULL,
+    s3_key TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_configs_created_at
+ON configs(config_type, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_images_status
 ON images(status);

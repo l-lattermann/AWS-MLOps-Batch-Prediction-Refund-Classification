@@ -50,7 +50,7 @@ def initialize_database() -> None:
 
 
 def main() -> None:
-    load_dotenv(ROOT / ".env")
+    load_dotenv(ROOT / ".env", override=True)
 
     logger.info("Starting database initialization")
     initialize_database()

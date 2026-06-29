@@ -1,9 +1,6 @@
 dataset:
   id: clothing_dataset_small
   version: v1
-
-  local_path: data/clothing-dataset-small
-
   train_dir: train
   validation_dir: validation
   test_dir: test
@@ -20,9 +17,5 @@ training:
   learning_rate: 0.001
 
 output:
-  model_path: ml/models/model_v1.pth
-  metadata_path: ml/models/model_v1_metadata.json
-
-aws:
-  s3_dataset_prefix: datasets/clothing_dataset_small/v1
-  s3_model_prefix: models
+  model_path: /tmp/model_v1.pth
+  metadata_path: /tmp/model_v1_metadata.json

@@ -1,0 +1,8 @@
+boto3
+fastapi
+psycopg
+pydantic
+python-dotenv
+PyYAML
+requests
+uvicorn

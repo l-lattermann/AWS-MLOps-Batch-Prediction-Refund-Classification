@@ -15,7 +15,7 @@ setup_logger(__name__)
 logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
-load_dotenv(ROOT / ".env")
+load_dotenv(ROOT / ".env", override=True)
 
 INFRASTRUCTURE_OUTPUT_PATH = ROOT / os.environ["INFRASTRUCTURE_OUTPUT_PATH"]
 CONFIG_DIR = ROOT / "config"
@@ -63,8 +63,42 @@ def upload_directory(s3, bucket: str, local_dir: Path, s3_prefix: str) -> None:
             upload_file(s3, bucket, path, key)
 
 
-def upload_configs(s3, bucket: str) -> None:
-    upload_directory(s3, bucket, CONFIG_DIR, "config")
+def upload_train_configs(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    configs_prefix = env.get("CONFIGS_PREFIX", "configs/").rstrip("/")
+    uploaded_configs = []
+
+    train_dir = CONFIG_DIR / "train"
+
+    for path in train_dir.glob("*.yml"):
+        s3_key = f"{configs_prefix}/train/{path.name}"
+        upload_file(s3, bucket, path, s3_key)
+
+        uploaded_configs.append({
+            "config_id": stable_id(s3_key),
+            "config_type": "TRAIN",
+            "s3_key": s3_key,
+        })
+
+    return uploaded_configs
+
+
+def upload_batch_prediction_configs(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    configs_prefix = env.get("CONFIGS_PREFIX", "configs/").rstrip("/")
+    uploaded_configs = []
+
+    batch_dir = CONFIG_DIR / "pred"
+
+    for path in batch_dir.glob("*.yml"):
+        s3_key = f"{configs_prefix}/pred/{path.name}"
+        upload_file(s3, bucket, path, s3_key)
+
+        uploaded_configs.append({
+            "config_id": stable_id(s3_key),
+            "config_type": "PREDICTION",
+            "s3_key": s3_key,
+        })
+
+    return uploaded_configs
 
 
 def normalize_dataset_id(name: str) -> str:
@@ -163,6 +197,20 @@ def upload_validation_as_incoming_images(s3, bucket: str, env: dict) -> list[dic
     return incoming_images
 
 
+def upsert_config(conn, config_id: str, config_type: str, s3_key: str) -> None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO configs (config_id, config_type, s3_key)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (s3_key)
+            DO UPDATE SET
+                config_type = EXCLUDED.config_type,
+                created_at = CURRENT_TIMESTAMP;
+            """,
+            (config_id, config_type, s3_key),
+        )
+
 def upsert_dataset(conn, dataset_id: str, dataset_version: str, name: str, s3_prefix: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
@@ -244,7 +292,8 @@ def main() -> None:
 
     s3 = boto3.client("s3", region_name=env["AWS_REGION"])
 
-    upload_configs(s3, bucket)
+    uploaded_train_configs = upload_train_configs(s3, bucket, env)
+    uploaded_prediction_configs = upload_batch_prediction_configs(s3, bucket, env)
     uploaded_datasets = upload_datasets(s3, bucket, env)
     uploaded_models = upload_models(s3, bucket, env)
     uploaded_incoming_images = upload_validation_as_incoming_images(s3, bucket, env)
@@ -256,6 +305,12 @@ def main() -> None:
         port=int(env["POSTGRES_PORT"]),
         dbname=env["POSTGRES_DB_NAME"],
     ) as conn:
+        for config in uploaded_train_configs:
+            upsert_config(conn, **config)
+
+        for config in uploaded_prediction_configs:
+            upsert_config(conn, **config)
+
         for dataset in uploaded_datasets:
             upsert_dataset(conn, **dataset)
 

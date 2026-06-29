@@ -1,0 +1,11 @@
+boto3
+kagglehub
+pillow
+psycopg
+pydantic
+pytest
+python-dotenv
+PyYAML
+requests
+torch
+torchvision

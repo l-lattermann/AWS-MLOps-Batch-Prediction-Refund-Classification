@@ -6,6 +6,7 @@
 __pycache__/
 *.py[cod]
 *.pyo
+*.so
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -17,6 +18,7 @@ htmlcov/
 venv/
 env/
 .python-version
+.pythonversion
 
 # IDE
 .vscode/
@@ -27,21 +29,30 @@ env/
 .env.*
 !.env.example
 
-# Local artifacts
-ml/models/
+# Local datasets / models
 data/
+ml/models/
 logs/
 
 # Terraform
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
 terraform/terraform.tfvars
 terraform/infrastructure.json
 terraform/global-bundle.pem
 
+# Generated infrastructure outputs
+infrastructure.json
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
 # macOS
 .DS_Store
 
-# Misc
+# Logs
 *.log
