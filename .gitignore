@@ -11,3 +11,4 @@ terraform/.terraform/
 **/*.venv/
 **/*venv/
 **/*.vscode/
+**/*.DS_Store
