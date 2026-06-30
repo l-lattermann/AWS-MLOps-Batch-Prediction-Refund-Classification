@@ -2,6 +2,8 @@ kagglehub
 torch
 torchvision
 psycopg
-dotenv
+python-dotenv
 boto3
 pytest
+py
+typing_extensions
