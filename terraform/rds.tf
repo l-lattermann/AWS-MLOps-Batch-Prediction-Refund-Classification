@@ -10,6 +10,7 @@ resource "aws_db_instance" "postgres" {
   publicly_accessible         = true
   vpc_security_group_ids      = [aws_security_group.rds.id]
   skip_final_snapshot         = true
+  copy_tags_to_snapshot       = false
 
   tags = local.common_tags
 }

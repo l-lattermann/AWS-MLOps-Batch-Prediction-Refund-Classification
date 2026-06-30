@@ -1,5 +1,15 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ -d ".venv" ]; then
+  rm -rf .venv
+fi
+
+python -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
 cd terraform
 terraform destroy -auto-approve || true
@@ -7,28 +17,20 @@ cd ..
 
 ./scripts/deploy_aws_resources.sh
 
-python3 scripts/export_envs.py
+./scripts/build_images.sh
+./scripts/push_images.sh
+
+python -m scripts.export_envs
 
 set -a
 source .env
 set +a
 
-python -m venv .venv
-source .venv/bin/activate
-
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-
 echo "Waiting for RDS..."
-until python -m scripts.db_init --check; do
-    sleep 5
-done
+sleep 60
 
 python -m scripts.db_init
 python -m scripts.bootstrap_aws
 
-
-./scripts/build_images.sh
-./scripts/push_images.sh
-
 python -m pytest tests/test_aws_infra.py
+python -m pytest tests/test_pred.py
