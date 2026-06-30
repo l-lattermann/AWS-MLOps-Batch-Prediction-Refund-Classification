@@ -9,17 +9,20 @@ terraform {
   }
 }
 
+# Configures the AWS provider region.
 provider "aws" {
   region = var.aws_region
 }
 
 locals {
+  # Tags applied to all supported resources.
   common_tags = {
     Project     = var.project_name
     Environment = var.environment
     ManagedBy   = "terraform"
   }
 
+  # Environment variables shared by all application containers.
   app_environment_base = {
     AWS_REGION           = var.aws_region
     S3_BUCKET            = aws_s3_bucket.refund_bucket.bucket
@@ -39,6 +42,7 @@ locals {
     INCOMING_IMAGES_PREFIX = "incoming-images/"
   }
 
+  # Runtime environment variables that depend on ECS and ALB resources.
   app_environment_runtime = {
     ECS_CLUSTER_NAME       = aws_ecs_cluster.cluster.name
     TRAIN_TASK_DEFINITION  = aws_ecs_task_definition.train.arn
@@ -49,6 +53,7 @@ locals {
     API_URL                = "http://${aws_lb.api.dns_name}"
   }
 
+  # Complete environment exported for scripts and ECS containers.
   app_environment = merge(
     local.app_environment_base,
     local.app_environment_runtime

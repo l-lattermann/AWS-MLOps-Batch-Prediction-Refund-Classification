@@ -1,3 +1,5 @@
+"""Create, save and load image classification models."""
+
 import logging
 from pathlib import Path
 
@@ -21,6 +23,7 @@ def create_model(
     architecture: str = DEFAULT_ARCHITECTURE,
     pretrained: bool = True,
 ) -> nn.Module:
+    """Create a supported torchvision classifier with a custom output layer."""
     if architecture == "mobilenet_v3_large":
         weights = MobileNet_V3_Large_Weights.DEFAULT if pretrained else None
         model = mobilenet_v3_large(weights=weights)
@@ -47,6 +50,7 @@ def save_model(
     architecture: str = DEFAULT_ARCHITECTURE,
     image_size: int = IMAGE_SIZE,
 ) -> None:
+    """Save model weights and inference metadata."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -69,6 +73,7 @@ def load_model(
     path: str | Path,
     device: str = "cpu",
 ) -> tuple[nn.Module, list[str], dict]:
+    """Load a saved model checkpoint for inference."""
     checkpoint = torch.load(path, map_location=device)
 
     architecture = checkpoint["architecture"]

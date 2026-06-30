@@ -8,7 +8,7 @@ services:
     volumes:
       - ..:/app
       - ~/.aws:/root/.aws:ro
-    command: python -m app.main
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
 
   train:
     build:
@@ -19,7 +19,7 @@ services:
     volumes:
       - ..:/app
       - ~/.aws:/root/.aws:ro
-    command: python -m ml.train_model
+    command: python -m ml.train
 
   batch:
     build:

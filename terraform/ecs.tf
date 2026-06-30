@@ -1,9 +1,10 @@
+# Creates the ECS cluster used by all Fargate workloads.
 resource "aws_ecs_cluster" "cluster" {
   name = "${var.project_name}-cluster"
   tags = local.common_tags
 }
 
-
+# Allows ECS to pull images and write logs for tasks.
 resource "aws_iam_role" "ecs_task_execution" {
   name = "${var.project_name}-ecs-task-execution"
 
@@ -19,11 +20,13 @@ resource "aws_iam_role" "ecs_task_execution" {
   tags = local.common_tags
 }
 
+# Attaches the AWS-managed execution policy for ECS tasks.
 resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
   role       = aws_iam_role.ecs_task_execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+# Runtime role assumed by the application containers.
 resource "aws_iam_role" "ecs_task" {
   name = "${var.project_name}-ecs-task"
 
@@ -39,6 +42,7 @@ resource "aws_iam_role" "ecs_task" {
   tags = local.common_tags
 }
 
+# Grants application containers access to S3, RDS credentials and task spawning.
 resource "aws_iam_role_policy" "ecs_task_app_permissions" {
   name = "${var.project_name}-ecs-task-app-permissions"
   role = aws_iam_role.ecs_task.id
@@ -59,17 +63,13 @@ resource "aws_iam_role_policy" "ecs_task_app_permissions" {
         ]
       },
       {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue"]
         Resource = aws_db_instance.postgres.master_user_secret[0].secret_arn
       },
       {
         Effect = "Allow"
-        Action = [
-          "ecs:RunTask"
-        ]
+        Action = ["ecs:RunTask"]
         Resource = [
           aws_ecs_task_definition.train.arn,
           aws_ecs_task_definition.batch.arn
@@ -77,9 +77,7 @@ resource "aws_iam_role_policy" "ecs_task_app_permissions" {
       },
       {
         Effect = "Allow"
-        Action = [
-          "iam:PassRole"
-        ]
+        Action = ["iam:PassRole"]
         Resource = [
           aws_iam_role.ecs_task_execution.arn,
           aws_iam_role.ecs_task.arn
@@ -89,6 +87,7 @@ resource "aws_iam_role_policy" "ecs_task_app_permissions" {
   })
 }
 
+# Defines the training Fargate task.
 resource "aws_ecs_task_definition" "train" {
   family                   = "${var.project_name}-train"
   requires_compatibilities = ["FARGATE"]
@@ -124,6 +123,7 @@ resource "aws_ecs_task_definition" "train" {
   tags = local.common_tags
 }
 
+# Defines the batch prediction Fargate task.
 resource "aws_ecs_task_definition" "batch" {
   family                   = "${var.project_name}-batch"
   requires_compatibilities = ["FARGATE"]
@@ -159,6 +159,7 @@ resource "aws_ecs_task_definition" "batch" {
   tags = local.common_tags
 }
 
+# Defines the API Fargate task.
 resource "aws_ecs_task_definition" "api" {
   family                   = "${var.project_name}-api"
   requires_compatibilities = ["FARGATE"]
@@ -206,6 +207,7 @@ resource "aws_ecs_task_definition" "api" {
   tags = local.common_tags
 }
 
+# Keeps one API task running behind the load balancer.
 resource "aws_ecs_service" "api" {
   name            = "${var.project_name}-api"
   cluster         = aws_ecs_cluster.cluster.id

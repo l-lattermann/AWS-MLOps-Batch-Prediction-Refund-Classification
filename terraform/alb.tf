@@ -1,3 +1,4 @@
+# Application Load Balancer exposing the REST API.
 resource "aws_lb" "api" {
   name               = "${var.project_name}-api-alb"
   load_balancer_type = "application"
@@ -7,6 +8,7 @@ resource "aws_lb" "api" {
   tags = local.common_tags
 }
 
+# Target group for API ECS tasks.
 resource "aws_lb_target_group" "api" {
   name        = "${var.project_name}-api-tg"
   port        = 8000
@@ -14,6 +16,7 @@ resource "aws_lb_target_group" "api" {
   vpc_id      = aws_default_vpc.default.id
   target_type = "ip"
 
+  # Periodically checks whether the API container is reachable.
   health_check {
     path                = "/"
     matcher             = "200"
@@ -26,6 +29,7 @@ resource "aws_lb_target_group" "api" {
   tags = local.common_tags
 }
 
+# Routes incoming HTTP traffic to the API target group.
 resource "aws_lb_listener" "api_http" {
   load_balancer_arn = aws_lb.api.arn
   port              = 80

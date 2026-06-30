@@ -1,3 +1,4 @@
+# Creates the PostgreSQL database used by the application.
 resource "aws_db_instance" "postgres" {
   identifier                  = "${var.project_name}-db"
   engine                      = "postgres"
@@ -9,8 +10,10 @@ resource "aws_db_instance" "postgres" {
   manage_master_user_password = true
   publicly_accessible         = true
   vpc_security_group_ids      = [aws_security_group.rds.id]
-  skip_final_snapshot         = true
-  copy_tags_to_snapshot       = false
+
+  # The database is recreated from scratch during setup.
+  skip_final_snapshot   = true
+  copy_tags_to_snapshot = false
 
   tags = local.common_tags
 }

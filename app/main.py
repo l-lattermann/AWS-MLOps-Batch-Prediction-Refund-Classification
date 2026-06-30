@@ -1,14 +1,4 @@
-"""
-FastAPI application.
-
-Responsibilities:
-- REST API endpoints
-- Upload images (path to local dir)
-- Manual predictions (use latest pred config)
-- Manual training start (use latest trrain config)
-- Health checks (print train config, print pred config, model, metadata,  other health checks?)
-"""
-
+"""Expose API endpoints for model, training and prediction operations."""
 
 import os
 import uuid
@@ -41,15 +31,19 @@ app = FastAPI(title="Refund Classification API")
 
 
 class UploadDirRequest(BaseModel):
+    """Request body for uploading all images from a local directory."""
+
     directory: str
 
 
 def s3_yaml(key: str) -> dict:
+    """Load and parse a YAML file from S3."""
     res = s3.get_object(Bucket=S3_BUCKET, Key=key)
     return yaml.safe_load(res["Body"].read().decode("utf-8"))
 
 
 def latest_config(config_type: str) -> dict:
+    """Return the latest config metadata and parsed YAML content."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -71,6 +65,7 @@ def latest_config(config_type: str) -> dict:
 
 
 def active_model() -> dict | None:
+    """Return the latest active model record."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -97,6 +92,7 @@ def active_model() -> dict | None:
 
 
 def run_ecs_task(task_definition: str | None, container_name: str, command: list[str]) -> dict:
+    """Start a Fargate task for training or batch prediction."""
     if not ECS_CLUSTER_NAME or not task_definition or not ECS_SUBNET_IDS or not ECS_SECURITY_GROUP_IDS:
         raise HTTPException(status_code=500, detail="Missing ECS env vars")
 
@@ -128,11 +124,13 @@ def run_ecs_task(task_definition: str | None, container_name: str, command: list
 
 @app.get("/")
 def root():
+    """Return basic service status."""
     return {"service": "refund-classification", "status": "running"}
 
 
 @app.get("/health")
 def health():
+    """Check API dependencies and return the active runtime state."""
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT 1")
@@ -152,6 +150,7 @@ def health():
 
 @app.get("/model/active")
 def model_active():
+    """Return the currently active model."""
     model = active_model()
     if model is None:
         raise HTTPException(status_code=404, detail="No active model found")
@@ -160,6 +159,7 @@ def model_active():
 
 @app.post("/images/upload-dir")
 def upload_images(req: UploadDirRequest):
+    """Upload local images to S3 and register them as pending."""
     directory = Path(req.directory)
 
     if not directory.is_dir():
@@ -195,9 +195,11 @@ def upload_images(req: UploadDirRequest):
 
 @app.post("/training/run")
 def run_training():
+    """Start a training task."""
     return run_ecs_task(TRAIN_TASK_DEFINITION, "train", ["python", "-m", "ml.train"])
 
 
 @app.post("/predictions/run")
 def run_prediction():
+    """Start a batch prediction task."""
     return run_ecs_task(BATCH_TASK_DEFINITION, "batch", ["python", "-m", "ml.batch_predict"])

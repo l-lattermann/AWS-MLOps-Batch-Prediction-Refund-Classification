@@ -1,2 +1,3 @@
 batch:
+  # Maximum number of pending images processed in a single prediction run.
   limit: 10

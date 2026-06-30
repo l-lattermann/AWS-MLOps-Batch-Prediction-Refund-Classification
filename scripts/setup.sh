@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
+
 if [ -d ".venv" ]; then
-  rm -rf .venv
+    rm -rf .venv
 fi
 
 python -m venv .venv
@@ -32,5 +35,14 @@ sleep 60
 python -m scripts.db_init
 python -m scripts.bootstrap_aws
 
+printf "\nTesting if infrastructure was deployed correctly and is online...\n"
 python -m pytest tests/test_aws_infra.py
+
+printf "\nTesting if batch prediction runs and metadata upserts to RDS work...\nBe patient, this will take around 5 minutes!\n"
 python -m pytest tests/test_pred.py
+
+printf "\nTesting if training runs and metadata upserts to RDS work...\nBe patient, this will take around 30 minutes!\n"
+python -m pytest tests/test_train.py
+
+printf "\nTesting if the database is fully populated after all functionalities have been executed...\n"
+python -m pytest tests/test_db_upserts.py

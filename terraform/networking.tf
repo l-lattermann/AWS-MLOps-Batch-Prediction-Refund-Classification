@@ -1,7 +1,9 @@
+# Uses the account's default VPC for the project network.
 resource "aws_default_vpc" "default" {
   tags = local.common_tags
 }
 
+# Allows PostgreSQL access to the RDS instance.
 resource "aws_security_group" "rds" {
   name        = "${var.project_name}-rds-sg"
   description = "Allow PostgreSQL access"
@@ -24,6 +26,7 @@ resource "aws_security_group" "rds" {
   tags = local.common_tags
 }
 
+# Looks up subnets in the default VPC for ECS and ALB placement.
 data "aws_subnets" "default" {
   filter {
     name   = "vpc-id"
@@ -31,6 +34,7 @@ data "aws_subnets" "default" {
   }
 }
 
+# Allows ECS tasks to reach AWS services and the internet.
 resource "aws_security_group" "ecs_tasks" {
   name        = "${var.project_name}-ecs-tasks-sg"
   description = "Allow ECS tasks outbound access"
@@ -46,6 +50,7 @@ resource "aws_security_group" "ecs_tasks" {
   tags = local.common_tags
 }
 
+# Allows public HTTP access to the load balancer.
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb-sg"
   description = "Allow HTTP access to ALB"
@@ -68,6 +73,7 @@ resource "aws_security_group" "alb" {
   tags = local.common_tags
 }
 
+# Allows the ALB to forward traffic to the API container.
 resource "aws_security_group_rule" "ecs_api_from_alb" {
   type                     = "ingress"
   from_port                = 8000

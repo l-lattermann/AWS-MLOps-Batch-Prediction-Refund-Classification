@@ -12,6 +12,8 @@ def get_connection_from_secret(
     port: int,
     dbname: str,
 ) -> psycopg.Connection:
+    """Create a PostgreSQL connection using credentials from AWS Secrets Manager."""
+
     postgres = get_secret(secret_name=secret_arn, region=region)
 
     return psycopg.connect(
@@ -24,6 +26,8 @@ def get_connection_from_secret(
 
 
 def get_connection() -> psycopg.Connection:
+    """Create a PostgreSQL connection using environment configuration."""
+
     return get_connection_from_secret(
         secret_arn=os.environ["POSTGRES_SECRET_ARN"],
         region=os.environ["AWS_REGION"],

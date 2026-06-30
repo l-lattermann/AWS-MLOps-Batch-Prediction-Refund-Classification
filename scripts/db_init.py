@@ -16,11 +16,15 @@ SCHEMA_PATH = ROOT / "sql" / "01_schema.sql"
 
 
 def load_schema_sql() -> str:
+    """Load the SQL schema used to initialize the database."""
+
     logger.info("Loading schema file | path=%s", SCHEMA_PATH)
     return SCHEMA_PATH.read_text(encoding="utf-8")
 
 
 def load_infra_environment() -> dict[str, str]:
+    """Load Terraform-generated infrastructure outputs."""
+
     path = (ROOT / os.environ["INFRASTRUCTURE_OUTPUT_PATH"]).resolve()
     logger.info("Loading infrastructure outputs | path=%s", path)
 
@@ -31,6 +35,8 @@ def load_infra_environment() -> dict[str, str]:
 
 
 def initialize_database() -> None:
+    """Create the database schema in the configured PostgreSQL instance."""
+
     infra_env = load_infra_environment()
 
     logger.info("Connecting to PostgreSQL")
@@ -44,16 +50,21 @@ def initialize_database() -> None:
     ) as conn:
         with conn.cursor() as cursor:
             cursor.execute(load_schema_sql())
+
         conn.commit()
 
     logger.info("Database schema initialized successfully")
 
 
 def main() -> None:
+    """Initialize the database schema."""
+
     load_dotenv(ROOT / ".env", override=True)
 
     logger.info("Starting database initialization")
+
     initialize_database()
+
     logger.info("Database initialization finished")
 
 

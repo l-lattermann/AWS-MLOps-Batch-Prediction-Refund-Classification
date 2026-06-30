@@ -1,3 +1,4 @@
+# Creates a Resource Group for all project resources based on tags.
 resource "aws_resourcegroups_group" "refund_group" {
   name = var.project_name
 

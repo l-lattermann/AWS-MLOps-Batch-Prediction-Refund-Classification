@@ -17,5 +17,6 @@ training:
   learning_rate: 0.001
 
 output:
+  # Temporary files uploaded to S3 after training.
   model_path: /tmp/model_v1.pth
   metadata_path: /tmp/model_v1_metadata.json

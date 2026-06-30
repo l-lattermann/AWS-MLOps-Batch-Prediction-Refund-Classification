@@ -1,6 +1,5 @@
 *.env
 data/*/*
-**/terraform.tfvars
 **/__pycache__/
 *.py[cod]
 terraform/.terraform/
@@ -12,3 +11,4 @@ terraform/.terraform/
 **/*venv/
 **/*.vscode/
 **/*.DS_Store
+!example.env

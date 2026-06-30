@@ -1,3 +1,4 @@
+# Allows EventBridge to start scheduled ECS tasks.
 resource "aws_iam_role" "eventbridge_ecs" {
   name = "${var.project_name}-eventbridge-ecs"
 
@@ -13,6 +14,7 @@ resource "aws_iam_role" "eventbridge_ecs" {
   tags = local.common_tags
 }
 
+# Grants EventBridge permission to run training and batch tasks.
 resource "aws_iam_role_policy" "eventbridge_ecs" {
   name = "${var.project_name}-eventbridge-ecs"
   role = aws_iam_role.eventbridge_ecs.id
@@ -40,6 +42,7 @@ resource "aws_iam_role_policy" "eventbridge_ecs" {
   })
 }
 
+# Starts the batch prediction task from the nightly schedule.
 resource "aws_cloudwatch_event_target" "nightly_predictions" {
   rule     = aws_cloudwatch_event_rule.nightly_predictions.name
   arn      = aws_ecs_cluster.cluster.arn
@@ -58,6 +61,7 @@ resource "aws_cloudwatch_event_target" "nightly_predictions" {
   }
 }
 
+# Starts the training task from the monthly schedule.
 resource "aws_cloudwatch_event_target" "monthly_training" {
   rule     = aws_cloudwatch_event_rule.monthly_training.name
   arn      = aws_ecs_cluster.cluster.arn

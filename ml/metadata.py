@@ -5,6 +5,7 @@ import json
 
 
 def get_git_commit_hash() -> str | None:
+    """Return the current Git commit hash, or None if unavailable."""
     try:
         return subprocess.check_output(
             ["git", "rev-parse", "HEAD"],
@@ -20,6 +21,8 @@ def build_training_metadata(
     dataset_id: str,
     dataset_version: str,
     train_loss: float,
+    val_loss: float,
+    train_accuracy: float,
     val_accuracy: float,
     test_accuracy: float,
     epochs: int,
@@ -28,6 +31,7 @@ def build_training_metadata(
     image_size: int,
     training_duration_seconds: float,
 ) -> dict:
+    """Create the metadata dictionary stored alongside a trained model."""
     return {
         "model_version": model_version,
         "architecture": architecture,
@@ -35,6 +39,8 @@ def build_training_metadata(
         "dataset_id": dataset_id,
         "dataset_version": dataset_version,
         "train_loss": train_loss,
+        "validation_loss": val_loss,
+        "train_accuracy": train_accuracy,
         "validation_accuracy": val_accuracy,
         "test_accuracy": test_accuracy,
         "epochs": epochs,
@@ -50,6 +56,7 @@ def save_metadata_json(
     metadata: dict,
     path: str | Path,
 ) -> None:
+    """Save model metadata as a formatted JSON file."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 

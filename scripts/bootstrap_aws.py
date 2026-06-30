@@ -1,3 +1,5 @@
+"""Upload project assets to AWS and register them in RDS."""
+
 import hashlib
 import json
 from dotenv import load_dotenv
@@ -25,6 +27,7 @@ DEFAULT_DATASET_VERSION = "v1"
 
 
 def load_infrastructure() -> dict:
+    """Load Terraform outputs required for AWS bootstrap."""
     with INFRASTRUCTURE_OUTPUT_PATH.open(encoding="utf-8") as f:
         outputs = json.load(f)
     return {
@@ -34,10 +37,12 @@ def load_infrastructure() -> dict:
 
 
 def stable_id(value: str) -> str:
+    """Create a deterministic short ID from a string."""
     return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
 
 
 def object_exists(s3, bucket: str, key: str) -> bool:
+    """Check whether an object already exists in S3."""
     try:
         s3.head_object(Bucket=bucket, Key=key)
         return True
@@ -48,6 +53,7 @@ def object_exists(s3, bucket: str, key: str) -> bool:
 
 
 def upload_file(s3, bucket: str, local_path: Path, key: str) -> None:
+    """Upload a file to S3 if it does not already exist."""
     if object_exists(s3, bucket, key):
         logger.info("Skipping existing object s3://%s/%s", bucket, key)
         return
@@ -57,6 +63,7 @@ def upload_file(s3, bucket: str, local_path: Path, key: str) -> None:
 
 
 def upload_directory(s3, bucket: str, local_dir: Path, s3_prefix: str) -> None:
+    """Upload all files from a directory to an S3 prefix."""
     for path in local_dir.rglob("*"):
         if path.is_file():
             key = f"{s3_prefix}/{path.relative_to(local_dir).as_posix()}"
@@ -64,6 +71,7 @@ def upload_directory(s3, bucket: str, local_dir: Path, s3_prefix: str) -> None:
 
 
 def upload_train_configs(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    """Upload training configs and return their database records."""
     configs_prefix = env.get("CONFIGS_PREFIX", "configs/").rstrip("/")
     uploaded_configs = []
 
@@ -83,6 +91,7 @@ def upload_train_configs(s3, bucket: str, env: dict) -> list[dict[str, str]]:
 
 
 def upload_batch_prediction_configs(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    """Upload prediction configs and return their database records."""
     configs_prefix = env.get("CONFIGS_PREFIX", "configs/").rstrip("/")
     uploaded_configs = []
 
@@ -102,10 +111,12 @@ def upload_batch_prediction_configs(s3, bucket: str, env: dict) -> list[dict[str
 
 
 def normalize_dataset_id(name: str) -> str:
+    """Convert a dataset folder name into a stable dataset ID."""
     return name.replace("-", "_")
 
 
 def upload_datasets(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    """Upload local datasets and return their database records."""
     datasets_prefix = env.get("DATASETS_PREFIX", "datasets/").rstrip("/")
     datasets = []
 
@@ -131,6 +142,7 @@ def upload_datasets(s3, bucket: str, env: dict) -> list[dict[str, str]]:
 
 
 def upload_models(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    """Upload local model artifacts and return their database records."""
     models_prefix = env.get("MODELS_PREFIX", "models/").rstrip("/")
     uploaded_models = []
 
@@ -164,6 +176,7 @@ def upload_models(s3, bucket: str, env: dict) -> list[dict[str, str]]:
 
 
 def upload_validation_as_incoming_images(s3, bucket: str, env: dict) -> list[dict[str, str]]:
+    """Upload validation images as pending production-like inputs."""
     incoming_prefix = env.get("INCOMING_IMAGES_PREFIX", "incoming-images/").rstrip("/")
     incoming_images = []
     counter = 1
@@ -198,6 +211,7 @@ def upload_validation_as_incoming_images(s3, bucket: str, env: dict) -> list[dic
 
 
 def upsert_config(conn, config_id: str, config_type: str, s3_key: str) -> None:
+    """Create or update a config record."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -211,7 +225,9 @@ def upsert_config(conn, config_id: str, config_type: str, s3_key: str) -> None:
             (config_id, config_type, s3_key),
         )
 
+
 def upsert_dataset(conn, dataset_id: str, dataset_version: str, name: str, s3_prefix: str) -> None:
+    """Create or update a dataset record."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -236,6 +252,7 @@ def upsert_model(
     s3_metadata_path: str,
     active: bool,
 ) -> None:
+    """Create or update a model record."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -271,6 +288,7 @@ def upsert_model(
 
 
 def upsert_image(conn, image_id: str, s3_key: str, filename: str) -> None:
+    """Create or reset a pending image record."""
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -286,6 +304,7 @@ def upsert_image(conn, image_id: str, s3_key: str, filename: str) -> None:
 
 
 def main() -> None:
+    """Upload bootstrap assets and upsert their RDS records."""
     infra = load_infrastructure()
     bucket = infra["bucket"]
     env = infra["env"]
@@ -323,7 +342,6 @@ def main() -> None:
         conn.commit()
 
     logger.info("AWS bootstrap finished.")
-
 
 if __name__ == "__main__":
     main()
