@@ -1,5 +1,7 @@
 *.env
-data/*/*
+data/clothing-dataset-small/test/*
+data/clothing-dataset-small/train/*
+data/clothing-dataset-small/validation/*
 **/__pycache__/
 *.py[cod]
 terraform/.terraform/
@@ -12,3 +14,5 @@ terraform/.terraform/
 **/*.vscode/
 **/*.DS_Store
 !example.env
+**/*.pytest_cache
+/#####TODO####.txt
