@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from app.logging_config import setup_logger
-from ml.metadata import build_training_metadata, save_metadata_json
+from ml.metadata import build_training_metadata, cloudwatch_log_stream, save_metadata_json
 from ml.model import create_model, save_model
 from storage.rds_connection import get_connection
 
@@ -27,7 +27,6 @@ AWS_REGION = os.environ.get("AWS_REGION", "")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 MODELS_PREFIX = os.environ.get("MODELS_PREFIX", "").rstrip("/")
 CLOUDWATCH_LOG_GROUP = os.environ.get("CLOUDWATCH_LOG_GROUP", "")
-CLOUDWATCH_LOG_STREAM = os.environ.get("CLOUDWATCH_LOG_STREAM", "")
 
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
@@ -217,47 +216,44 @@ def upsert_model(conn, cfg: dict, s3_model_path: str, s3_metadata_path: str) -> 
         )
 
 
-def insert_training_run(
-    conn,
-    run_id: str,
-    cfg: dict,
-    train_loss: float,
-    val_loss: float,
-    train_acc: float,
-    val_acc: float,
-    test_acc: float,
-    runtime: float,
-) -> None:
-    """Insert a successful training run record."""
+def start_training_run(conn, run_id: str, cfg: dict) -> None:
+    """Insert a RUNNING training run record before training starts."""
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO training_runs (
                 run_id, model_version, dataset_id, dataset_version, status,
-                train_loss, validation_loss, train_accuracy, validation_accuracy, test_accuracy,
-                epochs, batch_size, learning_rate,
-                training_duration_seconds, cloudwatch_log_group, cloudwatch_log_stream,
-                finished_at
+                epochs, batch_size, learning_rate, cloudwatch_log_group, cloudwatch_log_stream
             )
-            VALUES (%s, %s, %s, %s, 'SUCCESS', %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+            VALUES (%s, %s, %s, %s, 'RUNNING', %s, %s, %s, %s, %s)
             """,
             (
                 run_id,
                 cfg["model"]["version"],
                 cfg["dataset"]["id"],
                 cfg["dataset"]["version"],
-                train_loss,
-                val_loss,
-                train_acc,
-                val_acc,
-                test_acc,
                 cfg["training"]["epochs"],
                 cfg["training"]["batch_size"],
                 cfg["training"]["learning_rate"],
-                runtime,
                 CLOUDWATCH_LOG_GROUP,
-                CLOUDWATCH_LOG_STREAM,
+                cloudwatch_log_stream(),
             ),
+        )
+
+
+def finish_training_run(conn, run_id: str, status: str, runtime: float, metrics: tuple | None = None, error: str | None = None) -> None:
+    """Set the final status, metrics and finish time of a training run."""
+    train_loss, val_loss, train_acc, val_acc, test_acc = metrics or (None,) * 5
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE training_runs
+            SET status = %s, train_loss = %s, validation_loss = %s, train_accuracy = %s,
+                validation_accuracy = %s, test_accuracy = %s, training_duration_seconds = %s,
+                error_message = %s, finished_at = CURRENT_TIMESTAMP
+            WHERE run_id = %s
+            """,
+            (status, train_loss, val_loss, train_acc, val_acc, test_acc, runtime, error, run_id),
         )
 
 
@@ -269,63 +265,78 @@ def main() -> None:
 
     with get_connection() as conn, tempfile.TemporaryDirectory() as tmp:
         cfg = load_yaml_from_s3(latest_config_key(conn))
-        prefix = dataset_prefix(conn, cfg["dataset"]["id"], cfg["dataset"]["version"])
-        dataset_dir = Path(tmp) / "dataset"
-        output_dir = Path(tmp) / "output"
-        output_dir.mkdir(parents=True, exist_ok=True)
-
-        download_prefix(prefix, dataset_dir)
-        train_loader, val_loader, test_loader, classes = load_datasets(dataset_dir, cfg)
-
-        model = create_model(
-            num_classes=len(classes),
-            architecture=cfg["model"]["architecture"],
-            pretrained=cfg["model"]["pretrained"],
-        ).to(device)
-
-        train_loss, val_loss, train_acc, val_acc = train_model(model, train_loader, val_loader, cfg, device)
-        _, test_acc = evaluate(model, test_loader, nn.CrossEntropyLoss(), device)
-        runtime = perf_counter() - started
-
-        model_path = output_dir / f"{cfg['model']['version']}.pth"
-        metadata_path = output_dir / f"{cfg['model']['version']}_metadata.json"
-        s3_model_path = f"{MODELS_PREFIX}/{cfg['model']['version']}/{model_path.name}"
-        s3_metadata_path = f"{MODELS_PREFIX}/{cfg['model']['version']}/{metadata_path.name}"
-
-        save_model(
-            model=model,
-            path=model_path,
-            class_names=classes,
-            architecture=cfg["model"]["architecture"],
-            image_size=cfg["model"]["image_size"],
-        )
-
-        metadata = build_training_metadata(
-            model_version=cfg["model"]["version"],
-            architecture=cfg["model"]["architecture"],
-            dataset_id=cfg["dataset"]["id"],
-            dataset_version=cfg["dataset"]["version"],
-            train_loss=train_loss,
-            val_loss=val_loss,
-            train_accuracy=train_acc,
-            val_accuracy=val_acc,
-            test_accuracy=test_acc,
-            epochs=cfg["training"]["epochs"],
-            batch_size=cfg["training"]["batch_size"],
-            learning_rate=cfg["training"]["learning_rate"],
-            image_size=cfg["model"]["image_size"],
-            training_duration_seconds=runtime,
-        )
-        save_metadata_json(metadata, metadata_path)
-
-        upload_file(model_path, s3_model_path)
-        upload_file(metadata_path, s3_metadata_path)
-
-        upsert_model(conn, cfg, s3_model_path, s3_metadata_path)
-        insert_training_run(conn, run_id, cfg, train_loss, val_loss, train_acc, val_acc, test_acc, runtime)
+        start_training_run(conn, run_id, cfg)
         conn.commit()
 
+        try:
+            s3_model_path, s3_metadata_path = run_training(conn, cfg, run_id, started, device, Path(tmp))
+        except Exception as exc:
+            conn.rollback()
+            finish_training_run(conn, run_id, "FAILED", perf_counter() - started, error=str(exc))
+            conn.commit()
+            raise
+
     logger.info("Training finished | run_id=%s model=%s metadata=%s", run_id, s3_model_path, s3_metadata_path)
+
+
+def run_training(conn, cfg: dict, run_id: str, started: float, device: str, tmp: Path) -> tuple[str, str]:
+    """Train, evaluate and upload the model, then mark the run as successful."""
+    prefix = dataset_prefix(conn, cfg["dataset"]["id"], cfg["dataset"]["version"])
+    dataset_dir = tmp / "dataset"
+    output_dir = tmp / "output"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    download_prefix(prefix, dataset_dir)
+    train_loader, val_loader, test_loader, classes = load_datasets(dataset_dir, cfg)
+
+    model = create_model(
+        num_classes=len(classes),
+        architecture=cfg["model"]["architecture"],
+        pretrained=cfg["model"]["pretrained"],
+    ).to(device)
+
+    train_loss, val_loss, train_acc, val_acc = train_model(model, train_loader, val_loader, cfg, device)
+    _, test_acc = evaluate(model, test_loader, nn.CrossEntropyLoss(), device)
+    runtime = perf_counter() - started
+
+    model_path = output_dir / f"{cfg['model']['version']}.pth"
+    metadata_path = output_dir / f"{cfg['model']['version']}_metadata.json"
+    s3_model_path = f"{MODELS_PREFIX}/{cfg['model']['version']}/{model_path.name}"
+    s3_metadata_path = f"{MODELS_PREFIX}/{cfg['model']['version']}/{metadata_path.name}"
+
+    save_model(
+        model=model,
+        path=model_path,
+        class_names=classes,
+        architecture=cfg["model"]["architecture"],
+        image_size=cfg["model"]["image_size"],
+    )
+
+    metadata = build_training_metadata(
+        model_version=cfg["model"]["version"],
+        architecture=cfg["model"]["architecture"],
+        dataset_id=cfg["dataset"]["id"],
+        dataset_version=cfg["dataset"]["version"],
+        train_loss=train_loss,
+        val_loss=val_loss,
+        train_accuracy=train_acc,
+        val_accuracy=val_acc,
+        test_accuracy=test_acc,
+        epochs=cfg["training"]["epochs"],
+        batch_size=cfg["training"]["batch_size"],
+        learning_rate=cfg["training"]["learning_rate"],
+        image_size=cfg["model"]["image_size"],
+        training_duration_seconds=runtime,
+    )
+    save_metadata_json(metadata, metadata_path)
+
+    upload_file(model_path, s3_model_path)
+    upload_file(metadata_path, s3_metadata_path)
+
+    upsert_model(conn, cfg, s3_model_path, s3_metadata_path)
+    finish_training_run(conn, run_id, "SUCCESS", runtime, (train_loss, val_loss, train_acc, val_acc, test_acc))
+    conn.commit()
+    return s3_model_path, s3_metadata_path
 
 
 if __name__ == "__main__":

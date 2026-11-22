@@ -1,5 +1,7 @@
 from pathlib import Path
+import os
 import subprocess
+from urllib.request import urlopen
 from datetime import datetime, timezone
 import json
 
@@ -70,3 +72,15 @@ def save_metadata_json(
             indent=4,
             ensure_ascii=False,
         )
+
+
+def cloudwatch_log_stream() -> str:
+    """Return this container's CloudWatch log stream from the ECS metadata endpoint."""
+    uri = os.environ.get("ECS_CONTAINER_METADATA_URI_V4")
+    if not uri:
+        return os.environ.get("CLOUDWATCH_LOG_STREAM", "")
+    try:
+        with urlopen(uri, timeout=2) as res:
+            return json.load(res)["LogOptions"]["awslogs-stream"]
+    except Exception:
+        return ""

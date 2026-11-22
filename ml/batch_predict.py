@@ -15,6 +15,7 @@ from PIL import Image
 from torchvision import transforms
 
 from app.logging_config import setup_logger
+from ml.metadata import cloudwatch_log_stream
 from ml.model import create_model
 from storage.rds_connection import get_connection
 
@@ -24,7 +25,6 @@ logger = logging.getLogger(__name__)
 AWS_REGION = os.environ.get("AWS_REGION", "")
 S3_BUCKET = os.environ.get("S3_BUCKET", "")
 CLOUDWATCH_LOG_GROUP = os.environ.get("CLOUDWATCH_LOG_GROUP", "")
-CLOUDWATCH_LOG_STREAM = os.environ.get("CLOUDWATCH_LOG_STREAM", "")
 LOW_CONFIDENCE_THRESHOLD = float(os.environ.get("LOW_CONFIDENCE_THRESHOLD", "0.60"))
 
 s3 = boto3.client("s3", region_name=AWS_REGION)
@@ -128,7 +128,7 @@ def create_run(conn, run_id: str, model_version: str) -> None:
         cur.execute("""
             INSERT INTO prediction_runs (run_id, model_version, status, cloudwatch_log_group, cloudwatch_log_stream)
             VALUES (%s, %s, 'RUNNING', %s, %s)
-        """, (run_id, model_version, CLOUDWATCH_LOG_GROUP, CLOUDWATCH_LOG_STREAM))
+        """, (run_id, model_version, CLOUDWATCH_LOG_GROUP, cloudwatch_log_stream()))
 
 
 def mark_processing(conn, images: list[dict]) -> None:
@@ -243,6 +243,7 @@ def main() -> None:
                     logger.info("Predicted | image_id=%s class=%s confidence=%.4f", image["image_id"], pred_class, conf)
                 except Exception:
                     logger.exception("Image prediction failed | image_id=%s", image["image_id"])
+                    conn.rollback()  # a failed SQL statement aborts the transaction
                     mark_failed(conn, image["image_id"])
                     failed += 1
 
@@ -254,7 +255,11 @@ def main() -> None:
             conn.commit()
 
         except Exception as exc:
-            finish_run(conn, run_id, "FAILED", processed, failed + len(images) - processed - failed, confidences, str(exc))
+            conn.rollback()
+            # Images not reached stay retryable for the next nightly run.
+            with conn.cursor() as cur:
+                cur.execute("UPDATE images SET status = 'PENDING' WHERE status = 'PROCESSING' AND image_id = ANY(%s)", ([i["image_id"] for i in images],))
+            finish_run(conn, run_id, "FAILED", processed, failed, confidences, str(exc))
             conn.commit()
             raise
 

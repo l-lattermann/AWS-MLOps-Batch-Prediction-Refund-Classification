@@ -78,9 +78,7 @@ CREATE TABLE IF NOT EXISTS training_runs (
     finished_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
-    FOREIGN KEY (model_version)
-        REFERENCES models(model_version),
-
+    -- No FK on model_version: the run is logged before its model exists.
     FOREIGN KEY (dataset_id, dataset_version)
         REFERENCES datasets(dataset_id, dataset_version)
 );
