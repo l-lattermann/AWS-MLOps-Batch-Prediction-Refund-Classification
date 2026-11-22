@@ -14,6 +14,8 @@ The entire infrastructure is deployed automatically on AWS using Terraform. All 
 
 The pipeline supports both manual execution and scheduled execution using Amazon EventBridge.
 
+![High-level architecture](docs/images/high_level_architecture.png)
+
 ---
 
 # System Workflow
@@ -33,7 +35,9 @@ For every image, the predicted class and confidence score are stored in Amazon R
 - number and percentage of low-confidence predictions
 - predicted class distribution
 
-Successfully processed images are marked as **PREDICTED**, while failed images receive status **FAILED**.
+Successfully processed images are marked as **PREDICTED**, while failed images receive status **FAILED**. If the whole run fails, for example because the model cannot be loaded, the run is marked **FAILED** with its error message, and all images that were not reached return to **PENDING** for the next nightly run.
+
+![Uploads and predictions](docs/images/uploads_and_predictions.png)
 
 Model training follows a similar workflow. Training can be started manually or automatically once per month through Amazon EventBridge. The training service retrieves the newest training configuration and dataset metadata, downloads the corresponding dataset from Amazon S3, and trains a new image classification model.
 
@@ -53,9 +57,30 @@ The stored training metrics include:
 - dataset version
 - model version
 
+Every training run is written to Amazon RDS with status **RUNNING** before training starts and updated to **SUCCESS** or **FAILED** afterwards, so failed runs are recorded together with their error message.
+
 Together with the prediction statistics, these metrics provide complete traceability of every model version and enable continuous monitoring of model quality over time.
 
-Operational monitoring is integrated throughout the system. API requests, training jobs and prediction jobs continuously write logs to Amazon CloudWatch, while Amazon RDS serves as the central metadata store for all datasets, models, prediction runs and training runs.
+![ML system monitoring](docs/images/ml_system_monitoring.png)
+
+Operational monitoring is integrated throughout the system. API requests, training jobs and prediction jobs continuously write logs to Amazon CloudWatch, while Amazon RDS serves as the central metadata store for all datasets, models, prediction runs and training runs. Every training and prediction run stores the name of its CloudWatch log stream, so the logs of a specific run can be found directly from its database record.
+
+---
+
+# Dataset & Model
+
+The model is trained on the top-10 subset of the [clothing dataset](https://github.com/alexeygrigorev/clothing-dataset-small) (3,781 images: 3,068 train / 341 validation / 372 test). The [full dataset](https://www.kaggle.com/datasets/agrigorev/clothing-dataset-full) contains 5,403 images in 20 strongly imbalanced classes.
+
+![Class distribution of the full dataset](docs/images/class_distribution.png)
+
+The classifier is a MobileNetV3-Large (PyTorch, ImageNet weights), fine-tuned for 5 epochs with batch size 32 and learning rate 0.001.
+
+| Metric | Value |
+|---|---|
+| Validation accuracy | 85.9% |
+| Test accuracy | 87.6% |
+
+The goal of the project is the production system, not maximum accuracy.
 
 ---
 
@@ -87,6 +112,12 @@ Finally, database consistency tests validate all foreign-key relationships and v
 ---
 
 # Architecture Overview
+
+![AWS services](docs/images/aws_services.png)
+
+Training and prediction jobs are started either by the EventBridge schedule or manually through the API:
+
+![API and event triggers](docs/images/api_and_event_triggers.png)
 
 ```
                                    Developer
@@ -156,6 +187,8 @@ refund-classification/
 └── tests/                   # Integration tests
 ```
 
+![Terraform structure](docs/images/terraform_structure.png)
+
 ---
 
 # Setup
@@ -175,6 +208,8 @@ The entire system can be deployed using
 ./scripts/setup.sh
 ```
 
+![System bootstrap](docs/images/system_bootstrap.png)
+
 The setup script automatically performs the complete deployment pipeline:
 
 1. Creates all AWS infrastructure using Terraform
@@ -190,15 +225,15 @@ After the script finishes successfully, the entire system is operational and rea
 
 > **Warning**
 >
-> The setup script executes
+> The setup script first executes
 >
 > ```bash
-> terraform apply -auto-approve
+> terraform destroy -auto-approve
 > ```
 >
-> automatically.
+> and then deploys the infrastructure again with `terraform apply -auto-approve`.
 >
-> Running the script therefore creates or updates AWS infrastructure without requiring additional confirmation. Only execute it in an AWS account where creating infrastructure is intended.
+> Running the script therefore **deletes** any existing deployment of this project, including its database and stored predictions, and creates new AWS infrastructure without additional confirmation. Only execute it in an AWS account where this is intended.
 
 ---
 
